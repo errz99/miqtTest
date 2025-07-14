@@ -17,13 +17,6 @@ const (
 	lineNumberRole = int(qt.UserRole + 1)
 )
 
-type AppWindow struct {
-	w  *qt.QMainWindow
-	cw *qt.QWidget
-
-	tabs *qt.QTabWidget
-}
-
 type AppTab struct {
 	tab      *qt.QWidget
 	outline  *qt.QListWidget
@@ -49,21 +42,59 @@ func NewAppTab() *AppTab {
 	ret.textArea.OnTextChanged(ret.handleTextChanged)
 
 	panes.AddWidget(ret.textArea.QWidget)
-
 	panes.SetSizes([]int{250, 550})
 
 	return &ret
 }
 
-func NewAppWindow() *AppWindow {
+func (t *AppTab) handleTextChanged() {
+	content := t.textArea.ToPlainText()
+	t.updateOutlineForContent(content)
+}
 
+func (t *AppTab) updateOutlineForContent(content string) {
+	t.outline.Clear()
+
+	lines := strings.Split(content, "\n")
+
+	for lineNumber, line := range lines {
+		if strings.HasPrefix(line, `#`) {
+
+			bookmark := qt.NewQListWidgetItem7(line, t.outline)
+			bookmark.SetToolTip(fmt.Sprintf("Line %d", lineNumber+1))
+			bookmark.SetData(lineNumberRole, qt.NewQVariant7(lineNumber))
+		}
+	}
+}
+
+func (t *AppTab) handleJumpToBookmark(current *qt.QListWidgetItem, previous *qt.QListWidgetItem) {
+	itm := t.outline.CurrentItem()
+
+	if itm == nil {
+		return
+	}
+
+	lineNumber := itm.Data(lineNumberRole).ToInt()
+	targetBlock := t.textArea.Document().FindBlockByLineNumber(lineNumber)
+
+	t.textArea.SetTextCursor(qt.NewQTextCursor4(targetBlock))
+	t.textArea.SetFocus()
+}
+
+type AppWindow struct {
+	w  *qt.QMainWindow
+	cw *qt.QWidget
+
+	tabs *qt.QTabWidget
+}
+
+func NewAppWindow() *AppWindow {
 	ret := AppWindow{}
 
 	ret.w = qt.NewQMainWindow2()
 	ret.w.SetWindowTitle("Markdown Outliner")
 
 	// Menu
-
 	mnu := qt.NewQMenuBar2()
 	fileMenu := mnu.AddMenuWithTitle("&File")
 
@@ -96,7 +127,6 @@ func NewAppWindow() *AppWindow {
 	ret.w.SetMenuBar(mnu)
 
 	// Main widgets
-
 	ret.tabs = qt.NewQTabWidget(ret.w.QWidget)
 	ret.tabs.SetTabsClosable(true)
 	ret.tabs.OnTabCloseRequested(func(index int) {
@@ -106,7 +136,6 @@ func NewAppWindow() *AppWindow {
 	ret.w.SetCentralWidget(ret.tabs.QWidget)
 
 	// Add initial tab
-
 	sampleContent, err := embedContent.ReadFile("README.md")
 	if err != nil {
 		panic(err)
@@ -137,46 +166,11 @@ func (a *AppWindow) handleFileOpen() {
 }
 
 func (a *AppWindow) createTabWithContents(tabTitle, tabContent string) {
-
 	tab := NewAppTab()
 	tab.textArea.SetText(tabContent)
 
 	tabIdx := a.tabs.AddTab2(tab.tab, qt.QIcon_FromTheme("text-markdown"), tabTitle)
 	a.tabs.SetCurrentIndex(tabIdx)
-}
-
-func (t *AppTab) handleTextChanged() {
-	content := t.textArea.ToPlainText()
-	t.updateOutlineForContent(content)
-}
-
-func (t *AppTab) updateOutlineForContent(content string) {
-	t.outline.Clear()
-
-	lines := strings.Split(content, "\n")
-
-	for lineNumber, line := range lines {
-		if strings.HasPrefix(line, `#`) {
-
-			bookmark := qt.NewQListWidgetItem7(line, t.outline)
-			bookmark.SetToolTip(fmt.Sprintf("Line %d", lineNumber+1))
-			bookmark.SetData(lineNumberRole, qt.NewQVariant7(lineNumber))
-		}
-	}
-}
-
-func (t *AppTab) handleJumpToBookmark(current *qt.QListWidgetItem, previous *qt.QListWidgetItem) {
-	itm := t.outline.CurrentItem()
-	if itm == nil {
-		return
-	}
-
-	lineNumber := itm.Data(lineNumberRole).ToInt()
-
-	targetBlock := t.textArea.Document().FindBlockByLineNumber(lineNumber)
-	t.textArea.SetTextCursor(qt.NewQTextCursor4(targetBlock))
-
-	t.textArea.SetFocus()
 }
 
 func main() {
